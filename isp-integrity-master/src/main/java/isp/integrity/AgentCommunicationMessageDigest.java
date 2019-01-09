@@ -4,6 +4,8 @@ import fri.isp.Agent;
 import fri.isp.Environment;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Arrays;
 
 /**
  * An MITM example showing how merely using a collision-resistant hash
@@ -24,7 +26,14 @@ public class AgentCommunicationMessageDigest {
                  *   - and a message Digest
                  */
                 final byte[] message = "I hope you get this message intact. Kisses, Alice.".getBytes(StandardCharsets.UTF_8);
+                final MessageDigest digestAlgorithm = MessageDigest.getInstance("SHA-256");
 
+                final byte[] hashed = digestAlgorithm.digest(message);
+
+                send("bob", hashed);
+
+                // String hashAsHex = Agent.hex(hashed);
+                //System.out.println(hashAsHex);
                 // TODO: Create the digest and send the (message, digest) pair
             }
         });
@@ -38,6 +47,7 @@ public class AgentCommunicationMessageDigest {
 
                 // TODO: Modify the message
 
+                System.out.println("hello");
                 // Forward the modified message
                 send("bob", message);
                 send("bob", tag);
@@ -55,7 +65,20 @@ public class AgentCommunicationMessageDigest {
                  * - checks if received and calculated message digest checksum match.
                  */
                 final byte[] message = receive("alice");
-                final byte[] tag = receive("alice");
+                final byte[] tag1 = receive("alice");
+
+                final MessageDigest digestAlgorithm = MessageDigest.getInstance("SHA-256");
+                final byte[] tag2 = digestAlgorithm.digest(message);
+
+                final byte[] tag11 = digestAlgorithm.digest(tag1);
+                final byte[] tag22 = digestAlgorithm.digest(tag2);
+
+                System.out.println(Arrays.equals(tag11,tag22));
+                final String tag111 = Agent.hex(tag11);
+                final String tag222 = Agent.hex(tag22);
+                System.out.println(tag111);
+                System.out.println(tag222);
+
 
                 // TODO: Check if the received (message, digest) pair is valid
             }
