@@ -54,11 +54,12 @@ public class DH3 {
                 byte[] ac = kac.getEncoded();
                 send("bob", ac);
 
+
                 byte[] cbe = receive("charlie");
                 x509EncodedKeySpec = new X509EncodedKeySpec(cbe);
                 charliePubKey = aliceKeyFac.generatePublic(x509EncodedKeySpec);
 
-                // Alice uses Carol's result from above
+                // Alice uses Charlie's result from above
                 aliceKeyAgree.doPhase(charliePubKey, true);
 
 
@@ -109,6 +110,7 @@ public class DH3 {
                 x509EncodedKeySpec = new X509EncodedKeySpec(ace);
                 alicePubKey = bobKeyFac.generatePublic(x509EncodedKeySpec);
 
+
                 // Bob uses Alice's result from above
                 bobKeyAgree.doPhase(alicePubKey, true);
 
@@ -147,11 +149,13 @@ public class DH3 {
                 X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(bobKpairEnc);
                 PublicKey bobPubKey = charlieKeyFac.generatePublic(x509EncodedKeySpec);
 
-                // Carol uses Bob's public key
+
+                // Charlie uses Bob's public key
                 Key kcb = charlieKeyAgree.doPhase(bobPubKey, false);
 
                 byte[] cb = kcb.getEncoded();
                 send("alice", cb);
+
 
                 byte[] ace = receive("bob");
                 x509EncodedKeySpec = new X509EncodedKeySpec(ace);

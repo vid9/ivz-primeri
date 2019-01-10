@@ -8,14 +8,22 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
 
 public class HandsOnAssignment {
     public static void main(String[] args) throws NoSuchAlgorithmException {
 
         final Key key = KeyGenerator.getInstance("AES").generateKey();
+
+        final String signingAlgorithm = "SHA256withRSA";
+        // "SHA256withDSA";
+        //"SHA256withECDSA";
+
+        final String keyAlgorithm = "RSA";
+        // "RSA";
+        // "EC";
+
+        final KeyPair keyPair = KeyPairGenerator.getInstance(keyAlgorithm).generateKeyPair();
 
         final Environment env = new Environment();
 
@@ -31,16 +39,27 @@ public class HandsOnAssignment {
                 send("bob", ct);
                 send("bob", iv);
 
+                final byte[] signature = receive("bob");
                 final byte[] ctBob = receive("bob");
                 final byte[] ivBob = receive("bob");
-                
 
-                final Cipher two = Cipher.getInstance("AES/CTR/NoPadding");
-                final IvParameterSpec spec = new IvParameterSpec(ivBob);
-                two.init(Cipher.DECRYPT_MODE,key,spec);
-                final byte[] decryptedText = two.doFinal(ctBob);
+                final Signature verifier = Signature.getInstance(signingAlgorithm);
+                verifier.initVerify(keyPair.getPublic());
 
+                verifier.update(ctBob);
+                verifier.update(ivBob);
 
+                System.out.println("Signature: "+Agent.hex(signature));
+
+                if (verifier.verify(signature)) {
+                    final Cipher two = Cipher.getInstance("AES/CTR/NoPadding");
+                    final IvParameterSpec spec = new IvParameterSpec(ivBob);
+                    two.init(Cipher.DECRYPT_MODE,key,spec);
+                    final byte[] decryptedText = two.doFinal(ctBob);
+                    print("Alice recieved: %s", new String(decryptedText, StandardCharsets.UTF_8));
+                } else {
+                    System.err.println("Invalid signature");
+                }
             }
         });
 
@@ -54,21 +73,28 @@ public class HandsOnAssignment {
                 bob.init(Cipher.DECRYPT_MODE,key,specs);
 
                 final byte[] pt2 = bob.doFinal(dataFromAlice);
-                if (pt2.equals("The package is in room 102".getBytes(StandardCharsets.UTF_8))) {
-                    final MessageDigest digest = MessageDigest.getInstance("SHA256withRSA");
-                    final byte[] hashed = digest.digest("Acknowledged".getBytes(StandardCharsets.UTF_8));
+                final Cipher bobAnswer = Cipher.getInstance("AES/CTR/NoPadding");
+                bobAnswer.init(Cipher.ENCRYPT_MODE,key);
+                final byte[] ct = bobAnswer.doFinal("Acknowledged".getBytes(StandardCharsets.UTF_8));
+                final byte[] iv2 = bobAnswer.getIV();
 
-                    final Cipher bobAnswer = Cipher.getInstance("AES/CTR/NoPadding");
-                    bobAnswer.init(Cipher.ENCRYPT_MODE,key);
-                    final byte[] ct = bobAnswer.doFinal(hashed);
-                    final byte[] iv2 = bobAnswer.getIV();
+                final Signature signer = Signature.getInstance(signingAlgorithm);
+                signer.initSign(keyPair.getPrivate());
+                signer.update(ct);
+                signer.update(iv2);
 
+                final byte[] signature = signer.sign();
 
-                    send("alice", ct);
-                    send("alice", iv2);
+                System.out.println("Signature: "+Agent.hex(signature));
+
+                send("alice", signature);
+                send("alice", ct);
+                send("alice", iv2);
+
+                print("Bob recieved: %s", new String(pt2, StandardCharsets.UTF_8));
                 }
-                print("Got '%s'", new String(dataFromAlice, StandardCharsets.UTF_8));
-            }
+
+
         });
 
         env.connect("alice", "bob");
