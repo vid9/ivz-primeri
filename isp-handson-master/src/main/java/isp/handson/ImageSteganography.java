@@ -1,4 +1,6 @@
-package isp.steganography;
+package isp.handson;
+
+import sun.security.util.BitArray;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -39,13 +41,13 @@ public class ImageSteganography {
         final byte[] decoded1 = ImageSteganography.decode("images/steganogram.png", payload.length+4);
         System.out.printf("Decoded: %s%n", new String(decoded1, "UTF-8"));
 
-
+/*
         //TODO: Assignment 2
         final SecretKey key = KeyGenerator.getInstance("AES").generateKey();
         ImageSteganography.encryptAndEncode(payload, "images/2_Morondava.png", "images/steganogram-encrypted.png", key);
         final byte[] decoded2 = ImageSteganography.decryptAndDecode("images/steganogram-encrypted.png", key);
 
-        System.out.printf("Decoded: %s%n", new String(decoded2, "UTF-8"));
+        System.out.printf("Decoded: %s%n", new String(decoded2, "UTF-8"));*/
     }
 
     /**
@@ -88,7 +90,7 @@ public class ImageSteganography {
         final BufferedImage image = loadImage(fileName);
 
         // read all LSBs
-        final BitSet bits = decode(image, size);
+        final BitArray bits = decode(image, size);
 
         // convert them to bytes
         return bits.toByteArray();
@@ -181,19 +183,88 @@ public class ImageSteganography {
      * @param size  the size of the encoded steganogram
      * @return {@link BitSet} instance representing the sequence of read bits
      */
-    protected static BitSet decode(final BufferedImage image, int size) {
-        final BitSet bits = new BitSet();
-        final int sizeBits = 8 * size;
+    protected static BitArray decode(final BufferedImage image, int size) {
+        int payloadSize = size*8;
+        BitArray bits = new BitArray(payloadSize);
 
-        for (int x = image.getMinX(), bitCounter = 0; x < image.getWidth() && bitCounter < sizeBits; x++) {
-            for (int y = image.getMinY(); y < image.getHeight() && bitCounter < sizeBits; y++) {
-                final Color color = new Color(image.getRGB(x, y));
-                final int lsb = color.getRed() & 0x01;
-                bits.set(bitCounter, lsb == 0x01);
-                bitCounter++;
+        String bitsString = "";
+
+        int minX = image.getMinX();
+        int minY = image.getMinY();
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+
+        boolean foundLength = false;
+
+        for (int x = minX, indexOfCurrentBit = 0; x < width && indexOfCurrentBit < payloadSize - 1; x++) {
+            for (int y = minY; y < height && indexOfCurrentBit < payloadSize - 1; y++) {
+                int pixelValue = image.getRGB(x, y);
+
+                Color color = new Color(pixelValue);
+
+                int[] colors = new int[] {
+                        color.getRed(),
+                        color.getGreen(),
+                        color.getBlue()
+                };
+
+                for (int singleColor : colors) {
+                    if (getLeastSignificantBitFromColor(singleColor)) bitsString += "1";
+                    else bitsString += "0";
+
+                    bits.set(indexOfCurrentBit, getLeastSignificantBitFromColor(singleColor));
+
+                    // We only need to process the image until all the payload values are encoded
+                    if (indexOfCurrentBit < payloadSize - 1) indexOfCurrentBit++;
+                    else if (!foundLength) {
+                        // We processed the first 4 bytes, now we get the size
+                        payloadSize = bitsToInt(bits) * 8;
+
+                        foundLength = true;
+
+                        indexOfCurrentBit = 0;
+
+                        bits = new BitArray(payloadSize);
+                    }
+                }
             }
         }
 
         return bits;
     }
+
+    protected static int setLeastSignificantBitForColor(int colorValue, boolean payloadBit) {
+        if (payloadBit) {
+            // 0x01 = 00000001 -> use bitwise OR with this value to only set the LSB to 1
+            colorValue = colorValue | 0x01;
+        } else {
+            // 0xfe = 11111110 -> use bitwise AND with this value to only set the LSB to 0
+            colorValue = colorValue & 0xfe;
+        }
+
+        return colorValue;
+    }
+
+
+    protected static boolean getLeastSignificantBitFromColor(int colorValue) {
+        // 0x01 = 00000001 -> use bitwise AND with this value to check if the LSB is either 0 or 1
+        return (colorValue & 0x01) != 0;
+    }
+
+    public static int bitsToInt(BitArray bitArray) {
+        int integerFromBits = 0;
+
+        for (int i = 0; i < 32; i++) {
+            if (bitArray.get(i)) {
+                // This particular bit is on
+
+                integerFromBits = integerFromBits | (1 << (32 - i - 1));
+            }
+        }
+
+        return integerFromBits;
+    }
 }
+
+
